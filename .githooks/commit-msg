@@ -1,0 +1,32 @@
+#!/bin/sh
+msg_file="$1"
+first_line="$(head -n 1 "$msg_file" | tr -d '\r')"
+
+# Allow merge commits
+echo "$first_line" | grep -Eq '^Merge ' && exit 0
+
+# Conventional-ish: type(scope optional): subject
+echo "$first_line" | grep -Eq '^(feat|fix|docs|refactor|perf|test|chore|build|ci|style|revert)(\([a-z0-9_-]+\))?: .{3,}$'
+if [ $? -ne 0 ]; then
+    cat << 'EOM'
+Invalid commit message.
+
+Use:
+  type(scope optional): short subject
+
+Examples:
+  feat: add technician time off display
+  fix(calendar): correct weekday alignment
+  docs: add deployment notes
+  refactor: move pricing logic into services
+
+Allowed types: feat fix docs refactor perf test chore build ci style revert
+EOM
+  exit 1
+fi
+
+exit 0
+EOF
+
+chmod +x .githooks/commit-msg
+git config core.hooksPath .githooks

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta charset="UTF-8">
+    <title>Termite Department Job Board</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+<script>
+(function(){
+    document.addEventListener('click', function(e){
+    var opener = e.target.closest('[data-open]');
+    if (opener){
+        e.preventDefault();
+        var sel = opener.getAttribute('data-open');
+        var m = document.querySelector(sel);
+        if (m){
+            m.removeAttribute('aria-hidden');
+            var first = m.querySelector('input,select,textarea,button');
+            if (first) first.focus();
+        }
+        return;
+    }
+    var closer = e.target.closest('[data-dismiss], .modal .close');
+    if (closer){
+        e.preventDefault();
+        var mm = closer.closest('.modal');
+        if (mm) mm.setAttribute('aria-hidden', 'true');
+      }
+    });
+})();
+    </script>
+
+<body>
+
+    <!-- Top Right User Bar -->
+     <div class="top-bar">
+         {% if not session.get("user") %}
+         <a href="{{ url_for('auth.login') }}" class="text-light">Login</a> |
+         {% else %}
+         <a href="{{ url_for('calendar.index') }}">Calendar View</a> |
+            <span class="user-info">Logged in as {{ session['user'].username }} | </span>
+            <a href="{{ url_for('auth.change_password') }}">Change Password</a>
+            {% if session["user"]["role"] == "admin" %}
+                | <a href="{{ url_for('admin.admin_users') }}">Admin Panel</a>
+            {% endif %}
+            | <a href="{{ url_for('auth.logout') }}" class="text-light">Logout</a>
+        {% endif %}
+    </div>
+
+    <!-- Flash messages -->
+    <div class="container py-3">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                <div class="flash-message">{{ messages[0] }}</div>
+            {% endif %}
+        {% endwith %}
+
+    <!-- Page content -->
+    {% block body%}
+        {% block content %}{% endblock %}
+    {% endblock %}
+
+    <!-- Footer -->
+    {% include "_footer.html" %}
+
+    </div>
+
+    {% block scripts %}
+        <script defer src="{{ url_for('static', filename='js/password-peek.js') }}"></script>
+        <script defer src="{{ url_for('static', filename='js/timeoff-form.js') }}"></script>
+    {% endblock %}
+
+    {% include "_partials/move_modal.html" %}
+
+    <script>
+    (function(){
+    // Intercept before overlays/other handlers (capture=true)
+    document.addEventListener('click', function(e){
+        const a = e.target.closest('a.move-link');
+        if (!a) return;
+
+    // If modal API exists, try to open; only cancel if we succeed
+        if (typeof window.openMoveModal === 'function') {
+        const id = parseInt(a.getAttribute('data-move-job-id'), 10);
+        const opened = window.openMoveModal(id);
+        if (opened) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            return;
+        }
+    }
+    // else: no modal available → allow normal navigation via href
+}, true); // <-- capture phase
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,139 @@
+"""Auth-related decorators for route protection.
+
+Provides:
+    - role_required(*roles): ensure the current session user has one of the allowed roles; otherwise flash and redirect.
+    - login_required(func): ensure a user is logged in; additionally enforces a forced-password-reset gate via ``session["must_change_pw"]``.
+"""
+
+from functools import wraps
+
+from flask import abort, current_app, flash, g, redirect, request, session, url_for
+
+from db import get_database
+
+
+def _uid():
+    return getattr(getattr(g, "user", None), "id", None) or session.get("user_id")
+
+
+def current_user_id_and_role():
+    u = getattr(g, "user", None)
+    if u is not None:
+        uid = (
+            getattr(u, "id", None)
+            if not isinstance(u, dict)
+            else (u.get("user_id") or u.get("id"))
+        )
+        role = getattr(u, "role", None) if not isinstance(u, dict) else u.get("role")
+        if uid is not None:
+            return int(uid), (role or "").lower()
+
+    su = session.get("user") or {}
+    uid = su.get("user_id") or session.get("user_id")
+    role = su.get("role") or session.get("role")
+    return (int(uid) if uid is not None else None), (role or "").lower()
+
+
+def owner_or_role(roles=("admin", "manager")):
+    def deco(fn):
+        @wraps(fn)
+        def wrapper(job_id, *a, **kw):
+            uid, role = current_user_id_and_role()
+            if uid is None:
+                abort(401)
+
+            conn = get_database()
+            row = conn.execute(
+                """
+                SELECT j.created_by AS owner_id
+                FROM jobs j
+                WHERE j.id = ?
+            """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                abort(404)
+            if not (row["owner_id"] == uid or role in roles):
+                abort(403)
+            return fn(job_id, *a, **kw)
+
+        return wrapper
+
+    return deco
+
+
+def write_guard(fn):
+    @wraps(fn)
+    def _inner(*a, **kw):
+        if current_app.config.get("READ_ONLY_PROD") and request.method in {
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+        }:
+            abort(423)  # Locked
+        return fn(*a, **kw)
+
+    return _inner
+
+
+def role_required(*roles):
+    """Decorator factory to restrict a view to specific roles.
+
+    If no user is logged in, redirects to the login page.
+    If a user is logged in but their ``role`` is not in ``roles``, a flash message is shown and the user is redirected to the calendar.
+
+    Args:
+        *roles: One or more role names (e.g., ``"admin"``, ``"manager"``, ``"technician"``, ``"sales"``).  If empty, any logged-in user passes.
+
+    Returns:
+        Callable: A decorator that wraps a Flask view function, preserving metadata via ``functools.wraps``.
+    """
+
+    def wrapper(f):
+        @wraps(f)
+        def inner(*args, **kwargs):
+            user = session.get("user")
+            if not user:
+                return redirect(url_for("auth.login"))
+            if roles and user.get("role") not in roles:
+                flash("You are not allowed to do that.", "error")
+                return redirect(url_for("calendar.index"))
+            return f(*args, **kwargs)
+
+        return inner
+
+    return wrapper
+
+
+def login_required(f):
+    """Decorator to require authentication and enforce password-reset gate.
+
+    Behavior:
+        - If no ``session["user"]`` is present, redirect to ``auth.login``.
+        - If ``session["must_change_pw"]`` is true and the current endpoint is not exempt, redirect to ``auth.force_password_reset``.
+        - Otherwise, call the wrapped view.
+
+    Exempt endpoints:
+        ``{"auth.force_password_reset", "auth.logout", "auth.login", "static"}``
+
+    Args:
+        f: Flask view function to wrap.
+
+    Returns:
+        Callable: The wrapped view function with access control applied and metadata preserved via ``functools.wraps``.
+
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if "user" not in session:
+            return redirect(url_for("auth.login"))
+
+        exempt = {"auth.force_password_reset", "auth.logout", "auth.login", "static"}
+        if session.get("must_change_pw") and request.endpoint not in exempt:
+            return redirect(url_for("auth.force_password_reset"))
+
+        return f(*args, **kwargs)
+
+    return decorated_function
