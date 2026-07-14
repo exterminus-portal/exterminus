@@ -20,7 +20,7 @@ def _b(v, default=False):
 class BaseConfig:
     SECRET_KEY = os.environ.get("SECRET_KEY", "change-me")
     DATABASE = os.environ.get(
-        "DATABASE_URL",
+        "EXTERM_DB_PATH",
         str(BASE_DIR / "instance" / "exterminus.sqlite3"),
     )
 
