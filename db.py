@@ -13,31 +13,25 @@ Notes:
 import sqlite3
 from pathlib import Path
 
+from flask import current_app
 from werkzeug.security import generate_password_hash
 
 from utils.logger import setup_logger
 
 logger = setup_logger(level=0)
-BASE_DIR = Path(__file__).parent
-# DATABASE = str(BASE_DIR / "db.sqlite3")
-DATABASE = str(BASE_DIR / "instance/exterminus.sqlite3")
 
 
 def get_database() -> sqlite3.Connection:
-    """Open a SQLite connection with standard app settings.
+    database = current_app.config["DATABASE"]
 
-    Configures:
-        - ``row_factory = sqlite3.Row`` for dict-like rows.
-        - ``PRAGMA foreign_keys = ON`` to enforce FK constraints.
-        - ``PRAGMA journal_mode = WAL`` for better concurrency and durability.
+    if database != ":memory:":
+        Path(database).parent.mkdir(parents=True, exist_ok=True)
 
-    Returns:
-        sqlite3.Connection: An open connection pointing at ``DATABASE``.
-    """
-    logger.debug(f"Connecting to sqlite3: {DATABASE}")
-    conn = sqlite3.connect(DATABASE, timeout=10)
+    logger.debug("Connecting to sqlite3: %s", database)
+
+    conn = sqlite3.connect(database, timeout=10)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON;")
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA journal_mode=WAL;")
     return conn
 

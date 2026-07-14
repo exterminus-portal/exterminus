@@ -8,6 +8,9 @@ Env vars:
 """
 
 import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def _b(v, default=False):
@@ -16,9 +19,11 @@ def _b(v, default=False):
 
 class BaseConfig:
     SECRET_KEY = os.environ.get("SECRET_KEY", "change-me")
-    DATABASE_URL = os.environ.get(
-        "DATABASE_URL", "sqlite:///instance/exterminus.sqlite3"
+    DATABASE = os.environ.get(
+        "DATABASE_URL",
+        str(BASE_DIR / "instance" / "exterminus.sqlite3"),
     )
+
     # Feat flags
     FEATURE_UNSCHEDULED_POOL = _b("FEATURE_UNSCHEDULED_POOL", False)
     FEATURE_ONBOARDING_TOUR = _b("FEATURE_ONBOARDING_TOUR", False)
