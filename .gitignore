@@ -1,6 +1,8 @@
 venv/
 .env
-*.env
+.env.*
+!.env.example
+!deploy/.env.example
 __pycache__/
 *.pyc
 instance/
