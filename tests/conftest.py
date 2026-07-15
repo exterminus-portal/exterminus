@@ -47,3 +47,73 @@ def db(database_path: Path):
     yield connection
 
     connection.close()
+
+
+@pytest.fixture()
+def user_factory(db):
+    """Create users for route and permission tests."""
+
+    def _create_user(
+        *,
+        username: str,
+        role: str,
+        first_name: str = "Test",
+        last_name: str = "User",
+    ):
+        cursor = db.execute(
+            """
+        INSERT INTO users (
+            first_name,
+            last_name,
+            username,
+            password,
+            role,
+            must_reset_password
+        )
+        VALUES (?, ?, ?, ?, ?, 0)
+        """,
+            (
+                first_name,
+                last_name,
+                username,
+                "unused-in-tests",
+                role,
+            ),
+        )
+        db.commit()
+
+        return db.execute(
+            "SELECT * FROM users WHERE id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+
+    return _create_user
+
+
+@pytest.fixture()
+def manager_user(user_factory):
+    """Create a manager for job-workflow tests."""
+    return user_factory(
+        username="test-manager",
+        role="manager",
+        first_name="Test",
+        last_name="Manager",
+    )
+
+
+@pytest.fixture()
+def log_in(client):
+    """Authenticate a database user directly through the test session."""
+
+    def _log_in(user):
+        with client.session_transaction() as session:
+            session["user"] = {
+                "user_id": user["id"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                "username": user["username"],
+                "role": user["role"],
+            }
+            session["must_change_pw"] = False
+
+    return _log_in

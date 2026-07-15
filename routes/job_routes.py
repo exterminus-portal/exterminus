@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 import zipcodes
+import flask
 from flask import (
     Blueprint,
     abort,
@@ -149,6 +150,12 @@ def derive_time_range(start_hhmm: str | None, end_hhmm: str | None) -> str | Non
 
 
 def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
+    # Dates
+    end_date = end_date or start_date
+
+    if end_date < start_date:
+        return None, "End date cannot be before start date."
+
     # Times
     start_time = normalize_hhmm(form.get("start_time"))
     end_time = normalize_hhmm(form.get("end_time"))
@@ -172,23 +179,6 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         rei_city_name = lookup_zipcode(rei_zip)
     else:
         rei_city_name = None
-
-        # REI Fields (ZIP or City or None; Quantity is required)
-        # rei_quantity_raw = (form.get("rei_quantity") or "").strip()
-        # rei_zip = (form.get("rei_quantity") or "").strip()
-        # rei_city_free = (form.get("rei_city_name") or form.get("rei_city") or "").strip()
-        # rei_city_name = None
-        # if rei_city_free:
-        #     rei_city_name = rei_city_free
-        # elif rei_zip and rei_zip.isdigit() and len(rei_zip) == 5:
-        #     rei_city_name = lookup_zipcode(rei_zip)
-        #
-        # REI Fields
-        #   rei_quantity = form.get("rei_quantity")
-        #  rei_zip = (form.get("rei_zip") or "").strip()
-        # rei_city_name = None
-        # if rei_zip and rei_zip.isdigit() and len(rei_zip) == 5:
-        #    rei_city_name = lookup_zipcode(rei_zip)
 
     # Other Fields
     exclusion_subtype = (form.get("exclusion_subtype") or "").strip() or None
@@ -225,6 +215,8 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         if not title:
             return None, "Title is required."
 
+    is_multiday = int(start_date > end_date)
+
     owner_id = _current_user_id()
     if owner_id is None:
         logger.warning(
@@ -238,7 +230,8 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         "job_type": job_type,
         "price": price,
         "start_date": start_date.isoformat(),
-        "end_date": end_final.isoformat() if end_final else None,
+        "end_date": end_final,
+        "is_multiday": is_multiday,
         "start_time": start_time,
         "end_time": end_time,
         "time_range": time_range,
@@ -259,6 +252,60 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         "created_by": owner_id,
     }
     return payload, None
+
+
+def _insert_job(cur, payload) -> int:
+    """Insert a normalized job payload and return the new job ID."""
+    cur.execute(
+        """
+            INSERT INTO jobs(
+                title,
+                job_type,
+                price,
+                start_date,
+                end_date,
+                start_time,
+                end_time,
+                time_range,
+                notes,
+                created_by,
+                technician_id,
+                two_man,
+                rei_quantity,
+                rei_zip,
+                rei_city_name,
+                exclusion_subtype,
+                fumigation_type,
+                target_pest,
+                custom_pest,
+                is_multiday
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+        (
+            payload["title"],
+            payload["job_type"],
+            payload["price"],
+            payload["start_date"],
+            payload["end_date"],
+            payload["start_time"],
+            payload["end_time"],
+            payload["time_range"],
+            payload["notes"],
+            payload["created_by"],
+            payload["technician_id"],
+            payload["two_man"],
+            payload["rei_quantity"],
+            payload["rei_zip"],
+            payload["rei_city_name"],
+            payload["exclusion_subtype"],
+            payload["fumigation_type"],
+            payload["target_pest"],
+            payload["custom_pest"],
+            payload["is_multiday"],
+        ),
+    )
+    return cur.lastrowid
 
 
 @job_bp.route("/add_job", methods=["GET", "POST"])
@@ -316,40 +363,7 @@ def add_job():
             return redirect(url_for("auth.login"))
 
         # Insert
-
-        cur.execute(
-            """
-            INSERT INTO jobs (
-                title, job_type, price, start_date, end_date,
-                start_time, end_time, time_range, notes,
-                created_by, technician_id, two_man,
-                rei_quantity, rei_zip, rei_city_name,
-                exclusion_subtype,
-                fumigation_type, target_pest, custom_pest
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                payload["title"],
-                payload["job_type"],
-                payload["price"],
-                payload["start_date"],
-                payload["end_date"],
-                payload["start_time"],
-                payload["end_time"],
-                payload["time_range"],
-                payload["notes"],
-                payload["created_by"],
-                payload["technician_id"],
-                payload["two_man"],
-                payload["rei_quantity"],
-                payload["rei_zip"],
-                payload["rei_city_name"],
-                payload["exclusion_subtype"],
-                payload["fumigation_type"],
-                payload["target_pest"],
-                payload["custom_pest"],
-            ),
-        )
+        _insert_job(cur, payload)
         conn.commit()
         logger.info(
             f"Job added by user ID {uid}: {payload['job_type']} from {payload['start_date']} to {payload['end_date']} @ {payload['time_range']}"
@@ -388,14 +402,24 @@ def add_job_for_date(date):
         conn = get_database()
         cur = conn.cursor()
 
-        try:
-            sd = datetime.strptime(date, "%Y-%m-%d").date()
-        except ValueError:
-            flash("Invalid date.", "error")
-            return redirect(url_for("calendar.index"))
-        ed = sd
+        start_date_raw = request.form.get("start_date") or date
+        end_date_raw = request.form.get("end_date") or start_date_raw
+
+        sd = _parse_date(start_date_raw)
+        ed = _parse_date(end_date_raw)
+
+        if not sd:
+            flask("Start date is invalid.", "error")
+            return redirect(
+                url_for("calendar.day_view", selected_date=payload["start_date"])
+            )
+
+        if not ed:
+            flask("End date is invalid.", "error")
+            return redirect(url_for("calendar.day_view", selected_date=date))
 
         payload, err = _compose_job_payload(request.form, cur, sd, ed)
+
         if err:
             flash(err, "error")
             return redirect(url_for("calendar.day_view", selected_date=date))
@@ -405,33 +429,7 @@ def add_job_for_date(date):
         if cur.fetchone():
             flash("Date is locked. Cannot add job.", "error")
             return redirect(url_for("calendar.day_view", selected_date=date))
-        cur.execute(
-            """
-            INSERT INTO jobs (
-                title, job_type, price, start_date, end_date, start_time, end_time, time_range, notes, technician_id, two_man, created_by, rei_quantity, rei_zip, rei_city_name, exclusion_subtype, fumigation_type, target_pest, custom_pest) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                payload["title"],
-                payload["job_type"],
-                payload["price"],
-                payload["start_date"],
-                payload["end_date"],
-                payload["start_time"],
-                payload["end_time"],
-                payload["time_range"],
-                payload["notes"],
-                payload["technician_id"],
-                payload["two_man"],
-                payload["created_by"],
-                payload["rei_quantity"],
-                payload["rei_zip"],
-                payload["rei_city_name"],
-                payload["exclusion_subtype"],
-                payload["fumigation_type"],
-                payload["target_pest"],
-                payload["custom_pest"],
-            ),
-        )
+        _insert_job(cur, payload)
         conn.commit()
         logger.info(
             f"Job added by user ID {owner_id}: {payload['job_type']} on {date} @ {payload['time_range']}"
@@ -537,6 +535,24 @@ def edit_job(job_id):
 
     conn = get_database()
     cur = conn.cursor()
+
+    job = cur.execute(
+        "SELECT * FROM jobs WHERE id = ?",
+        (job_id,),
+    ).fetchone()
+
+    if job is None:
+        abort(404)
+
+    technicians = cur.execute("SELECT * FROM technicians ORDER BY name").fetchall()
+
+    def render_edit_form():
+        return render_template(
+            "edit_job.html",
+            job=job,
+            technicians=technicians,
+        )
+
     if request.method == "POST":
         fumigation_type = request.form.get("fumigation_type")
         target_pest = request.form.get("target_pest")
@@ -549,10 +565,7 @@ def edit_job(job_id):
 
         if start_time and end_time and end_time <= start_time:
             flash("End time must be after start time.", "error")
-            return render_template(
-                "edit_job.html",
-                job=cur.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone(),
-            )
+            return render_edit_form()
 
         time_range = derive_time_range(start_time, end_time) or (
             request.form.get("time_range", "").strip() or "any"
@@ -568,21 +581,10 @@ def edit_job(job_id):
         ed = _parse_date(end_date_raw) if end_date_raw else None
         if not sd:
             flash("Start date is invalid.", "error")
-            return render_template(
-                "edit_job.html",
-                job=cur.execute(
-                    "SELECT * FROM jobs WHERE id = ?", (job_id,)
-                ).fetchone(),
-            )
+            return render_edit_form()
         if ed and ed < sd:
             flash("End date cannot be before start date.", "error")
-            return render_template(
-                "edit_job.html",
-                job=cur.execute(
-                    "SELECT * FROM jobs WHERE id = ?", (job_id,)
-                ).fetchone(),
-            )
-
+            return render_edit_form()
         title = (request.form.get("title") or "").strip()
         job_type = (
             (request.form.get("job_type") or request.form.get("type") or "")
@@ -598,13 +600,10 @@ def edit_job(job_id):
         else:
             if not title:
                 flash("Title is required.", "error")
-                return render_template(
-                    "edit_job.html",
-                    job=cur.execute(
-                        "SELECT * FROM jobs WHERE id = ?", (job_id,)
-                    ).fetchone(),
-                )
-            request_price = request.form.get("price")
+                return render_edit_form()
+        request_price = request.form.get("price")
+
+        is_multiday = int(ed > sd)
 
         technician_raw = request.form.get("technician_id")
         technician_id, two_man = _parse_technician(technician_raw, cur)
@@ -625,6 +624,7 @@ def edit_job(job_id):
                     target_pest = ?,
                     technician_id = ?,
                     two_man = ?,
+                    is_multiday = ?,
                     last_modified = CURRENT_TIMESTAMP,
                     last_modified_by = ?
             WHERE id = ?
@@ -643,6 +643,7 @@ def edit_job(job_id):
                 target_pest,
                 technician_id,
                 two_man,
+                is_multiday,
                 session["user"]["user_id"],
                 job_id,
             ),
@@ -652,8 +653,7 @@ def edit_job(job_id):
         logger.info(f"Job ID {job_id} edited by user ID {session['user']['user_id']}")
         return redirect(url_for("calendar.index"))
 
-    job = cur.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-    return render_template("edit_job.html", job=job)
+    return render_edit_form()
 
 
 @job_bp.post("/timeoff/add")
