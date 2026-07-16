@@ -1,6 +1,3 @@
-from types import NoneType
-
-
 def job_form_data(**overrides):
     """Return a minimally valid job-form submission."""
     data = {
@@ -76,22 +73,11 @@ def test_add_single_day_job_derives_single_day_status(
         data=job_form_data(),
     )
 
-    # print("status:", response.status_code)
-    # print("location:", response.headers.get("Location"))
-
-    # with client.session_transaction() as session:
-    #    print("flashes:", session.get("_flashes"))
-
-    # jobs = db.execute(
-    #    """
-    #        SELECT id, title, start_date, end_date, is_multiday
-    #            FROM jobs
-    # """
-    #    ).fetchall()
-
-    #   print("jobs:", [dict(job) for job in jobs])
-
     assert response.status_code == 302
+
+    count = db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+
+    assert count == 1
 
     job = db.execute(
         """
@@ -103,6 +89,62 @@ def test_add_single_day_job_derives_single_day_status(
     assert job is not None
     assert job["start_date"] == "2026-07-15"
     assert job["end_date"] == "2026-07-15"
+    assert job["is_multiday"] == 0
+
+
+def test_edit_multiday_job_into_single_day_clears_multiday_status(
+    client,
+    db,
+    manager_user,
+    log_in,
+):
+    log_in(manager_user)
+
+    cursor = db.execute(
+        """
+            INSERT INTO jobs (
+                title,
+                job_type,
+                start_date,
+                end_date,
+                is_multiday,
+                created_by
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+        (
+            "Existing Multiday Job",
+            "termite",
+            "2026-07-15",
+            "2026-07-17",
+            1,
+            manager_user["id"],
+        ),
+    )
+    db.commit()
+
+    response = client.post(
+        f"/edit_job/{cursor.lastrowid}",
+        data=job_form_data(
+            title="Updated Single Day Job",
+            start_date="2026-07-18",
+            end_date="2026-07-18",
+        ),
+    )
+
+    assert response.status_code == 302
+
+    job = db.execute(
+        """
+            SELECT start_date, end_date, is_multiday
+            FROM jobs
+            WHERE id = ?
+            """,
+        (cursor.lastrowid,),
+    ).fetchone()
+
+    assert job["start_date"] == "2026-07-18"
+    assert job["end_date"] == "2026-07-18"
     assert job["is_multiday"] == 0
 
 

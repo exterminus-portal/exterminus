@@ -215,7 +215,7 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         if not title:
             return None, "Title is required."
 
-    is_multiday = int(start_date > end_date)
+    is_multiday = int(end_final > start_date)
 
     owner_id = _current_user_id()
     if owner_id is None:
@@ -230,7 +230,7 @@ def _compose_job_payload(form, cur, start_date: date, end_date: date | None):
         "job_type": job_type,
         "price": price,
         "start_date": start_date.isoformat(),
-        "end_date": end_final,
+        "end_date": end_final.isoformat(),
         "is_multiday": is_multiday,
         "start_time": start_time,
         "end_time": end_time,

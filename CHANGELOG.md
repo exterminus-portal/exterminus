@@ -4,7 +4,13 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
-(nothing yet)
+### Fixed 
+
+- Consolidated single-day and multi-day creation into the standard Add Job form.
+- Restored editable start and end dates on the Edit Job form.
+- Derived multi-day status consistently from the saved date range.
+- Rejected job ranges whose end date precedes the start date.
+- Removed the broken separate Add Multi-Day control from the daily view.
 
 ## [1.0.0]
 
