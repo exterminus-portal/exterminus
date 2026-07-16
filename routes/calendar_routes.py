@@ -228,15 +228,13 @@ def day_view(selected_date: str):
           j.rei_zip,
           j.rei_city_name,
 
-          -- assignment/multiday info
-          j.assignment_mode,
+          -- scheduling information
           j.is_multiday,
-          COALESCE(j.start_date, j.date) AS start_date,
-          COALESCE(j.end_date, j.date) AS end_date,
+          j.start_date,
+          COALESCE(j.end_date, j.start_date) AS end_date,
 
           -- template compatibility
-          CASE WHEN j.assignment_mode = 'both' THEN 1 ELSE 0 END AS two_man,
-          t.name AS technician_name,
+          j.two_man,
 
           -- display helpers
           cu.username AS created_by_name,
@@ -247,16 +245,16 @@ def day_view(selected_date: str):
           END AS display_title,
 
           -- day-position flags
-          CASE WHEN j.is_multiday = 1 AND date(COALESCE(j.start_date, j.date)) = date(:sel) THEN 1 ELSE 0 END AS is_first,
-          CASE WHEN j.is_multiday = 1 AND date (COALESCE(j.end_date, j.date)) = date(:sel) THEN 1 ELSE 0 END AS is_last,
+          CASE WHEN j.is_multiday = 1 AND date(j.start_date) = date(:sel) THEN 1 ELSE 0 END AS is_first,
+          CASE WHEN j.is_multiday = 1 AND date (COALESCE(j.end_date, j.start_date)) = date(:sel) THEN 1 ELSE 0 END AS is_last,
           CASE WHEN j.is_multiday = 1
-                     AND date(:sel) > date(COALESCE(j.start_date, j.date))
-                     AND date(:sel) < date(COALESCE(j.end_date, j.date)) THEN 1 ELSE 0 END AS is_mid,
+                     AND date(:sel) > date(j.start_date)
+                     AND date(:sel) < date(COALESCE(j.end_date, j.start_date)) THEN 1 ELSE 0 END AS is_mid,
 
           -- price
           CASE
             WHEN j.is_multiday = 0 THEN 1
-            WHEN date(COALESCE(j.start_date, j.date)) = date(:sel) THEN 1
+            WHEN date(j.start_date) = date(:sel) THEN 1
             ELSE 0
           END AS show_price
 
@@ -265,13 +263,13 @@ def day_view(selected_date: str):
         LEFT JOIN users cu ON cu.id = j.created_by
         LEFT JOIN users mu ON mu.id = j.last_modified_by
         WHERE
-          (j.is_multiday = 0 AND date(COALESCE(j.date, j.start_date)) = date(:sel))
+          (j.is_multiday = 0 AND date(j.start_date) = date(:sel))
           OR
           (j.is_multiday = 1
-            AND date(COALESCE(j.start_date, j.date)) <= date(:sel)
-            AND date(COALESCE(j.end_date, j.date)) >= date(:sel))
+            AND date(j.start_date) <= date(:sel)
+            AND date(COALESCE(j.end_date, j.start_date)) >= date(:sel))
 
-        ORDER BY date(COALESCE(j.start_date, j.date)), j.id
+        ORDER BY date(j.start_date), j.id
         """,
         {"sel": selected_date},
     )

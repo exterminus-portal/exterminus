@@ -118,6 +118,7 @@ def init_db() -> None:
         rei_city_name TEXT,
         technician_id INTEGER,
         two_man INTEGER NOT NULL DEFAULT 0,
+        is_multiday INTEGER NOT NULL DEFAULT 0,
         created_by INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         last_modified TEXT,
