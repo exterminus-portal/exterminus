@@ -40,6 +40,35 @@ def _apply(conn, path):
         )
 
 
+def apply_migrations(
+    conn: sqlite3.Connection,
+    migration_directory: str | os.PathLike[str],
+) -> list[str]:
+    """Apply every migration not already recorded."""
+
+    _ensure_table(conn)
+
+    files = sorted(
+        glob.glob(
+            os.path.join(
+                os.fspath(migration_directory),
+                "*.sql",
+            )
+        )
+    )
+    already_applied = _applied(conn)
+
+    pending = [path for path in files if os.path.basename(path) not in already_applied]
+
+    applied = []
+
+    for path in pending:
+        _apply(conn, path)
+        applied.append(os.path.basename(path))
+
+    return applied
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", required=True, help="Path to SQLite file")
@@ -47,22 +76,40 @@ def main():
     args = ap.parse_args()
 
     conn = _connect(args.db)
-    _ensure_table(conn)
 
-    files = sorted(glob.glob(os.path.join(args.dir, "*.sql")))
-    already = _applied(conn)
-    todo = [f for f in files if os.path.basename(f) not in already]
+    try:
+        applied = apply_migrations(
+            conn,
+            args.dir,
+        )
+    finally:
+        conn.close()
 
-    if not todo:
+    if not applied:
         print("No new migrations.")
         return 0
 
-    for f in todo:
-        print(f"Applying {os.path.basename(f)} ...")
-        _apply(conn, f)
-
-    print("Applied:", ", ".join(os.path.basename(f) for f in todo))
+    print("Applied:", ", ".join(applied))
     return 0
+
+
+#    conn = _connect(args.db)
+#    _ensure_table(conn)
+
+#    files = sorted(glob.glob(os.path.join(args.dir, "*.sql")))
+#    already = _applied(conn)
+#    todo = [f for f in files if os.path.basename(f) not in already]
+
+#    if not todo:
+#        print("No new migrations.")
+#        return 0
+
+#    for f in todo:
+#        print(f"Applying {os.path.basename(f)} ...")
+#        _apply(conn, f)
+
+#    print("Applied:", ", ".join(os.path.basename(f) for f in todo))
+#    return 0
 
 
 if __name__ == "__main__":

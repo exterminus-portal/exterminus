@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     rei_quantity INTEGER,
     rei_city_name TEXT,
     technician_id INTEGER,
-    twoman INTEGER NOT NULL DEFAULT 0,
+    two_man INTEGER NOT NULL DEFAULT 0,
     is_multiday INTEGER NOT NULL DEFAULT 0,
     created_by INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,

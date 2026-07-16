@@ -15,10 +15,12 @@ from pathlib import Path
 
 from flask import current_app
 from werkzeug.security import generate_password_hash
+from migrations.run import apply_migrations
 
 from utils.logger import setup_logger
 
 logger = setup_logger(level=0)
+MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations" / "sql"
 
 
 def get_database() -> sqlite3.Connection:
@@ -49,131 +51,49 @@ def ensure_pragmas() -> None:
 
 
 def init_db() -> None:
-    """Create all tables if they don't exist and seed a default admin.
+    """Apply pending migrations and seed the default administrator."""
 
-    Creates tables:
-        - ``users``: basic auth and role info.
-        - ``technicians``: technician roster.
-        - ``jobs``: scheduled work items with optional technician and audit cols.
-        - ``locks``: per-day lock to prevent scheduling.
-        - ``time_off``: technician time-off ranges (inclusive).
-
-    Bootstraps:
-        - When there are no users, inserts an ``admin`` user with username ``"admin"`` and password ``"changeme"`` and sets a force-reset flag.
-
-    Returns:
-        None
-
-    """
     logger.debug("Initializing database...")
     conn = get_database()
-    cur = conn.cursor()
 
-    # USERS
-    cur.execute(
-        """
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        first_name TEXT,
-        last_name TEXT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT 'tech',
-        must_reset_password INTEGER NOT NULL DEFAULT 0,
-        last_password_change TEXT
-    );
-    """
-    )
-
-    # TECHNICIANS
-    cur.execute(
-        """
-    CREATE TABLE IF NOT EXISTS technicians (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE
-    );
-    """
-    )
-
-    # JOBS
-    cur.execute(
-        """
-    CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT,
-        start_time TEXT,
-        end_time TEXT,
-        time_range TEXT,
-        job_type TEXT,
-        price REAL,
-        fumigation_type TEXT,
-        target_pest TEXT,
-        custom_pest TEXT,
-        exclusion_subtype TEXT,
-        notes TEXT,
-        rei_zip TEXT,
-        rei_quantity INTEGER,
-        rei_city_name TEXT,
-        technician_id INTEGER,
-        two_man INTEGER NOT NULL DEFAULT 0,
-        is_multiday INTEGER NOT NULL DEFAULT 0,
-        created_by INTEGER,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        last_modified TEXT,
-        last_modified_by INTEGER,
-        FOREIGN KEY (technician_id) REFERENCES technicians(id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (last_modified_by) REFERENCES users(id) ON DELETE SET NULL
-    );
-    """
-    )
-
-    # LOCKS
-    cur.execute(
-        """
-    CREATE TABLE IF NOT EXISTS locks (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT UNIQUE NOT NULL,
-        locked_by INTEGER,
-        locked_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (locked_by) REFERENCES users(id) ON DELETE SET NULL
-    );
-    """
-    )
-
-    # TIME OFF
-    cur.execute(
-        """
-    CREATE TABLE IF NOT EXISTS time_off (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        technician_id INTEGER NOT NULL,
-        start_date TEXT NOT NULL,
-        end_date TEXT NOT NULL,
-        reason TEXT,
-        FOREIGN KEY (technician_id) REFERENCES technicians(id) ON DELETE CASCADE
-    );
-    """
-    )
-
-    # bootstrap admin if not exist
-    cur.execute("SELECT COUNT(*) AS c FROM users")
-    if cur.fetchone()["c"] == 0:
-        logger.warning(
-            "No users found; creating default admin (username 'admin' / password 'changeme')."
-        )
-        cur.execute(
-            "INSERT INTO users (first_name,last_name,username,password,role,must_reset_password) VALUES (?,?,?,?,?,?)",
-            ("Admin", "User", "admin", generate_password_hash("changeme"), "admin", 1),
+    try:
+        apply_migrations(
+            conn,
+            MIGRATIONS_DIR,
         )
 
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_jobs_start ON jobs(start_date);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_jobs_end ON jobs(end_date);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_timeoff_start ON time_off(start_date);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_timeoff_end ON time_off(end_date);")
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_locks_date ON locks(date);")
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS c FROM users")
 
-    conn.commit()
-    conn.close()
-    logger.info("Database ready.")
+        if cur.fetchone()["c"] == 0:
+            logger.warning(
+                "No users found; creating default admin."
+                "(username 'admin' / password 'changeme')"
+            )
+            cur.execute(
+                """
+                 INSERT INTO users (
+                    first_name,
+                    last_name,
+                    username,
+                    password,
+                    role,
+                    must_reset_password
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    "Admin",
+                    "User",
+                    "admin",
+                    generate_password_hash("changeme"),
+                    "admin",
+                    1,
+                ),
+            )
+
+        conn.commit()
+    finally:
+        conn.close()
+
+        logger.info("Database ready.")
