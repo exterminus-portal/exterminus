@@ -4,6 +4,16 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
+### Changed 
+
+- Made the SQL migration stream the authoritative database schema definition.
+- Applied pending migrations automatically during application startup.
+- Aligned migration history tracking with the existing production schema.
+
+### Added
+
+- Added regression coverage for fresh database bootstrap, production-style migration history, and repeated migration execution.
+
 ### Fixed 
 
 - Consolidated single-day and multi-day creation into the standard Add Job form.

@@ -6,7 +6,7 @@ Provides:
     - ``init_db()``: create tables if missing and bootstrap a default admin.
 
 Notes:
-    - File path is ``db.sqlite3`` under the package directory.
+    - The database path comes from the Flask ``DATABASE`` configuration.
     - PRAGMAs: ``foreign_keys=ON`` and ``journal_mode=WAL``.
 """
 
@@ -51,7 +51,7 @@ def ensure_pragmas() -> None:
 
 
 def init_db() -> None:
-    """Apply pending migrations and seed the default administrator."""
+    """apply pending migrations and bootstrap a default admin."""
 
     logger.debug("Initializing database...")
     conn = get_database()

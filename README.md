@@ -174,7 +174,12 @@ INSERT INTO technicians (name) VALUES ('Alice');
 - CSRF is enabled via Flask-WTF; every POST form includes a hidden token.
 - SQLite pragmas set: `foreign_keys=ON`, `journal_mode=WAL`.
 - Schema (jobs): `rei_quantity (INT)`, `rei_zip (TEXT)`, `rei_city_name (TEXT)`.
-- Lightweight SQL migrations (plain `.sql` files) may be included; no tool-managed migrations yet.
+- SQL migrations live in `migrations/sql` and are applied automatically during application startup.
+- Migrations can be rehearsed or applied manually with:
+
+```bash
+uv run python migrations/run.py --db /path/to/exterminus.sqlite3
+```
 
 ---
 
