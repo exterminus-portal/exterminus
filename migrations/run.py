@@ -14,9 +14,9 @@ def _ensure_table(conn):
     conn.execute(
         """
     CREATE TABLE IF NOT EXISTS schema_migrations(
-        id INTEGER PRIMARY KEY,
-        filename TEXT UNIQUE NOT NULL,
-        applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+        id TEXT PRIMARY KEY,
+        applied_at INTEGER NOT NULL,
+        meta TEXT
     );
     """
     )
@@ -24,7 +24,7 @@ def _ensure_table(conn):
 
 
 def _applied(conn):
-    return {row[0] for row in conn.execute("SELECT filename FROM schema_migrations")}
+    return {row[0] for row in conn.execute("SELECT id FROM schema_migrations")}
 
 
 def _apply(conn, path):
@@ -32,7 +32,10 @@ def _apply(conn, path):
     with conn:
         conn.executescript(sql)
         conn.execute(
-            "INSERT INTO schema_migrations(filename) VALUES (?)",
+            """
+            INSERT INTO schema_migrations(id, applied_at, meta)
+            VALUES (?, CAST(strftime('%s', 'now') AS INTEGER), NULL)
+            """,
             (os.path.basename(path),),
         )
 
