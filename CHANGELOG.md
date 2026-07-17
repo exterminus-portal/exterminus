@@ -13,11 +13,12 @@ All notable changes to this project will be documented here.
 ### Added
 
 - Added regression coverage for fresh database bootstrap, production-style migration history, and repeated migration execution.
+- Added regression coverage for the canonical time-off add and delete workflow.
 
 ### Removed
 
 - Removed the abandoned `/jobs/*` blueprint, its unused service/repository stack, and the orphaned multi-day creation modal.
-
+- Removed the duplicate, schema-incompatible `/timeoff/*` handlers in favor of the canonical `/time_off/*`  workflow.
 ### Fixed 
 
 - Consolidated single-day and multi-day creation into the standard Add Job form.
