@@ -14,6 +14,10 @@ All notable changes to this project will be documented here.
 
 - Added regression coverage for fresh database bootstrap, production-style migration history, and repeated migration execution.
 
+### Removed
+
+- Removed the abandoned `/jobs/*` blueprint, its unused service/repository stack, and the orphaned multi-day creation modal.
+
 ### Fixed 
 
 - Consolidated single-day and multi-day creation into the standard Add Job form.

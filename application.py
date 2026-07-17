@@ -19,8 +19,6 @@ from flask_wtf.csrf import CSRFError, generate_csrf
 
 from db import ensure_pragmas, init_db
 from routes import register_routes
-from services.jobs_service import JobsService
-from services.timeoff_service import TimeOffService
 from utils.feature_flags import feature
 from utils.logger import setup_logger
 from utils.version import __version__
@@ -96,14 +94,6 @@ def create_app(test_config: dict | None = None):
     csrf.init_app(app)
 
     # Services Container
-    app.extensions["services"] = {
-        "jobs": JobsService(),
-        "timeoff": TimeOffService(),
-    }
-
-    from routes.jobs import bp as jobs_bp
-
-    app.register_blueprint(jobs_bp)
 
     app.jinja_env.filters["fmt_ts"] = fmt_ts
 

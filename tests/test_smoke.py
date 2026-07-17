@@ -10,3 +10,9 @@ def test_day_view_loads_anonymously(client):
 
     assert response.status_code == 200
     assert b"Jobs for Wednesday, July 15, 2026" in response.data
+
+
+def test_legacy_jobs_blueprint_is_not_registered(app):
+    endpoints = {rule.endpoint for rule in app.url_map.iter_rules()}
+
+    assert not any(endpoint.startswith("jobs.") for endpoint in endpoints)
