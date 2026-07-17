@@ -6,16 +6,13 @@ Notes:
     - Uses CSRF tokens on GET pages that render forms.
 """
 
-from flask import (Blueprint, flash, redirect, render_template, request,
-                   session, url_for)
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from flask_wtf.csrf import generate_csrf
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from db import get_database
 from utils.decorators import login_required
 from utils.logger import setup_logger
-from utils.mailer import send_mail
-from utils.password_reset import burn, create_reset_token, load_valid_token
 
 auth_bp = Blueprint("auth", __name__)
 logger = setup_logger()
@@ -64,35 +61,6 @@ def login():
         logger.warning(f"Failed login attempt for username: {username}")
     generate_csrf()
     return render_template("login.html")
-
-@auth_bp.route("/forgot", methods=["GET", "POST"])
-def forgot_password():
-    if request.method == "POST":
-        ident = (request.form.get("identifier") or "").strip()
-        conn = get_database()
-        cur = conn.cursor()
-        user = None
-        if ident:
-            user = cur.execute("SELECT * FROM users WHERE email=? COLLATE NOCASE", (ident,)).fetchone()
-            if not user:
-                user = cur.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE", (ident,)).fetchone()
-        if user and user.get("email"):
-            token = create_reset_token(user["id"])
-            base = (auth_bp.server.config if hasattr(auth_bp, 'server') else None)
-            from flask import current_app
-            base_url = current_app.config.get("APP_BASE_URL", "http://127.0.0.1:5000").rstrip("/")
-            url = f"{base_url}{url_for('auth.reset_password', token=token)}"
-            ttl = current_app.config.get("PASSWORD_RESET_TOKEN_TTL_MIN", 30)
-            body = f"Use this link to reset your ExTerminus password (expires in {ttl} minutes):\n{url}\n"
-            try:
-                send_mail(user["email"], "ExTerminus password reset", body)
-            except Exception:
-                current_app.logger.exception("Reset email failed; logging link."); current_app.logger.warning(url)
-        flash("If an account exists, a reset link will be sent.", "info")
-        return redirect(url_for("auth.forgot_password"))
-    generate_csrf()
-    return render_template("auth/forgot_password.html")
-
 
 
 @auth_bp.route("/logout")

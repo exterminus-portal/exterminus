@@ -14,11 +14,14 @@ All notable changes to this project will be documented here.
 
 - Added regression coverage for fresh database bootstrap, production-style migration history, and repeated migration execution.
 - Added regression coverage for the canonical time-off add and delete workflow.
+- Added regression coverage for forced password reset and supported authentication routes.
 
 ### Removed
 
 - Removed the abandoned `/jobs/*` blueprint, its unused service/repository stack, and the orphaned multi-day creation modal.
 - Removed the duplicate, schema-incompatible `/timeoff/*` handlers in favor of the canonical `/time_off/*`  workflow.
+- Removed the incomplete self-service `/forgot` password-reset flow and its unused token and mail helpers.
+
 ### Fixed 
 
 - Consolidated single-day and multi-day creation into the standard Add Job form.
