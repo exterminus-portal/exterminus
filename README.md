@@ -169,6 +169,25 @@ INSERT INTO technicians (name) VALUES ('Alice');
 
 ---
 
+## Pest Terminal API 
+
+ExTerminus exposes anonymous, read-only JSON endpoints for local integrations:
+
+```text 
+GET /api/v1/health 
+GET /api/v1/schedule/day/YYYY-MM-DD
+```
+
+The daily schedule response includes:
+
+- Date and lock state
+- Jobs overlapping the selected date 
+- Multi-day position flags 
+- Technician assignment 
+- Technician time off
+
+ExTerminus remains the sole owner of its SQLite database.  Pest Terminal consumes schedule data through this HTTP API rather than opening the database directly. 
+
 ## Development Notes
 
 - CSRF is enabled via Flask-WTF; every POST form includes a hidden token.

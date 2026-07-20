@@ -15,6 +15,9 @@ All notable changes to this project will be documented here.
 - Added regression coverage for fresh database bootstrap, production-style migration history, and repeated migration execution.
 - Added regression coverage for the canonical time-off add and delete workflow.
 - Added regression coverage for forced password reset and supported authentication routes.
+- Added a versioned, anonymous, read-only daily schedule API for Pest Terminal.
+- Added an ExTerminus health endpoint for local integration checks.
+- Shared the daily schedule query between the HTML day view and JSON API.
 
 ### Removed
 

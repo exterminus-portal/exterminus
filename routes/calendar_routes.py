@@ -17,6 +17,7 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from db import get_database
+from schedule import read_day_schedule
 from utils.decorators import login_required, role_required
 from utils.holidays_util import holidays_for_month
 from utils.logger import setup_logger
@@ -193,96 +194,22 @@ def day_view(selected_date: str):
         return redirect(url_for("calendar.index"))
 
     conn = get_database()
-    cur = conn.cursor()
 
-    cur.execute("SELECT 1 FROM locks WHERE date = ?", (selected_date,))
-    locked = cur.fetchone() is not None
+    try:
+        schedule = read_day_schedule(
+            conn,
+            dt,
+        )
+    finally:
+        conn.close()
 
-    # Day-specific time off (list of rows)
-    cur.execute(
-        """
-        SELECT
-          toff.id,
-          toff.technician_id AS owner_id,
-          tech.name AS tech_name,
-          toff.reason
-        FROM time_off AS toff
-        LEFT JOIN technicians AS tech ON tech.id = toff.technician_id
-        WHERE date(:sel) BETWEEN date(toff.start_date)
-                            AND date(COALESCE(toff.end_date, toff.start_date))
-        ORDER BY tech.name
-        """,
-        {"sel": selected_date},
-    )
-    time_off = cur.fetchall()
-
-    # Jobs overlapping the day
-    cur.execute(
-        """
-        SELECT
-          j.id,
-          j.title,
-          j.job_type AS type,
-          j.price,
-          j.rei_quantity,
-          j.rei_zip,
-          j.rei_city_name,
-
-          -- scheduling information
-          j.is_multiday,
-          j.start_date,
-          COALESCE(j.end_date, j.start_date) AS end_date,
-
-          -- template compatibility
-          j.two_man,
-
-          -- display helpers
-          cu.username AS created_by_name,
-          mu.username AS modified_by_name,
-          CASE
-            WHEN LOWER(COALESCE(j.job_type, '')) = 'rei' THEN 'REIs'
-            ELSE COALESCE(NULLIF(j.title, ''), '(Untitled)')
-          END AS display_title,
-
-          -- day-position flags
-          CASE WHEN j.is_multiday = 1 AND date(j.start_date) = date(:sel) THEN 1 ELSE 0 END AS is_first,
-          CASE WHEN j.is_multiday = 1 AND date (COALESCE(j.end_date, j.start_date)) = date(:sel) THEN 1 ELSE 0 END AS is_last,
-          CASE WHEN j.is_multiday = 1
-                     AND date(:sel) > date(j.start_date)
-                     AND date(:sel) < date(COALESCE(j.end_date, j.start_date)) THEN 1 ELSE 0 END AS is_mid,
-
-          -- price
-          CASE
-            WHEN j.is_multiday = 0 THEN 1
-            WHEN date(j.start_date) = date(:sel) THEN 1
-            ELSE 0
-          END AS show_price
-
-        FROM jobs j
-        LEFT JOIN technicians AS t ON t.id = j.technician_id
-        LEFT JOIN users cu ON cu.id = j.created_by
-        LEFT JOIN users mu ON mu.id = j.last_modified_by
-        WHERE
-          (j.is_multiday = 0 AND date(j.start_date) = date(:sel))
-          OR
-          (j.is_multiday = 1
-            AND date(j.start_date) <= date(:sel)
-            AND date(COALESCE(j.end_date, j.start_date)) >= date(:sel))
-
-        ORDER BY date(j.start_date), j.id
-        """,
-        {"sel": selected_date},
-    )
-    jobs = cur.fetchall()
-
-    conn.close()
     return render_template(
         "day.html",
         default_date=request.args.get("date") or date.today().isoformat(),
         selected_date=dt,
-        locked=locked,
-        jobs=jobs,
-        time_off=time_off,
+        locked=schedule["locked"],
+        jobs=schedule["jobs"],
+        time_off=schedule["time_off"],
     )
 
 
