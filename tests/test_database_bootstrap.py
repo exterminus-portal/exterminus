@@ -44,4 +44,5 @@ def test_empty_database_records_applied_migrations(
     assert {
         "000_init.sql",
         "001_backfill_created_by_and_index.sql",
+        "002_add_custom_pest_to_jobs.sql",
     } <= applied_migrations

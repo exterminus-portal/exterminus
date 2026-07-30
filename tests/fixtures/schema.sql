@@ -84,3 +84,6 @@ CREATE TABLE IF NOT EXISTS "schema_migrations"(
   applied_at INTEGER NOT NULL,
   meta TEXT
 );
+
+INSERT OR IGNORE INTO schema_migrations (id, applied_at)
+VALUES ('002_add_custom_pest_to_jobs.sql', CURRENT_TIMESTAMP);

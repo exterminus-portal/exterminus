@@ -64,6 +64,9 @@ def test_migration_runner_bootstraps_empty_database(
                     """
             )
         }
+
+        job_columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)")}
+
         applied_migrations = {
             row[0] for row in connection.execute("SELECT id FROM schema_migrations")
         }
@@ -76,7 +79,10 @@ def test_migration_runner_bootstraps_empty_database(
             "time_off",
         } <= tables
 
+        assert "custom_pest" in job_columns
+
         assert {
             "000_init.sql",
             "001_backfill_created_by_and_index.sql",
+            "002_add_custom_pest_to_jobs.sql",
         } <= applied_migrations
