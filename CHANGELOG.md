@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here.
 
+## v1.1.1 (2026-07-29)
+
+### Fix
+
+- **deploy**: declare gunicorn as production dependency
+
 ## v1.1.0 (2026-07-29)
 
 ### Changed 
