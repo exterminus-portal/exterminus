@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here.
 
+## v1.1.2 (2026-07-29)
+
+### Fix
+
+- **db**: add missing custom_pest migration
+
 ## v1.1.1 (2026-07-29)
 
 ### Fix
