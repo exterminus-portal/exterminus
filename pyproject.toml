@@ -1,6 +1,6 @@
 [project]
 name = "exterminus"
-version = "1.0.0"
+version = "1.1.0"
 description = "A Flask application for scheduling pest-control jobs and technician time off."
 requires-python = ">=3.13"
 dependencies = [
@@ -22,7 +22,7 @@ pythonpath = ["."]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.0.0"
+version = "1.1.0"
 tag_format = "v$version"
 update_changelog_on_bump = true
 
