@@ -33,7 +33,7 @@ def setup_logger(
     Returns:
         logging.Logger: The configured logger instance.
     """
-    base = Path(__file__).parent
+    base = Path(__file__).resolve().parents[1]
     logs_dir = base / "logs"
     logs_dir.mkdir(exist_ok=True)
     log_path = log_file or (logs_dir / "exterminus.log")
