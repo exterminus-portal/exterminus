@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented here.
 
+## v1.1.3 (2026-07-31)
+
+### Fix
+
+- **calendar**: repair production workflows and layout
+
 ## v1.1.2 (2026-07-29)
 
 ### Fix
