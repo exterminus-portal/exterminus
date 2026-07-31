@@ -24,8 +24,8 @@ a:hover {
 }
 
 .container {
-    width: 90%;
-    max-width: 1200px;
+    width: min(96vw, 1800px);
+    max-width: none;
     margin: 0 auto;
 }
 
@@ -1061,12 +1061,24 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     }
 
     /* Holiday badge fit */
-    .holiday-badge,
-    .calendar-cell.holiday .holiday-badge {
-        max-width: 70%;
+
+    .calendar-cell {
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    }
+
+    .holiday-badge,
+    .calendar-cell.holiday, .holiday-badge {
+        display: -webkit-box;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.15;
+        max-height: 2.3em;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
     }
 
     /* Footer spacing on mobile */

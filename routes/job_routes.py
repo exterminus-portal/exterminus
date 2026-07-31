@@ -480,7 +480,47 @@ def move_job(job_id: int):
             flash("Pick a new date.", "error")
             return redirect(request.referrer or url_for("calendar.index"))
 
-    # compute duration and update … (your existing logic)
+    try:
+        old_start_date = datetime.strptime(job["start_date"], "%Y-%m-%d").date()
+        old_end_date = datetime.strptime(
+            job["end_date"] or job["start_date"], "%Y-%m-%d"
+        ).date()
+        new_start_date = datetime.strptime(new_start, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        flash("Invalid date.", "error")
+        return redirect(request.form.get("next") or url_for("calendar.index"))
+
+    duration = old_end_date - old_start_date
+    new_end_date = new_start_date + duration
+
+    cur.execute(
+        """
+            UPDATE jobs
+            SET start_date = ?,
+            end_date = ?,
+            is_multiday = ?,
+            last_modified = CURRENT_TIMESTAMP,
+            last_modified_by = ?
+        WHERE id = ?
+        """,
+        (
+            new_start_date.isoformat(),
+            new_end_date.isoformat(),
+            int(duration.days > 0),
+            session.get("user_id"),
+            job_id,
+        ),
+    )
+    conn.commit()
+
+    current_app.logger.info(
+        "Job ID %s moved by user ID %s to %s",
+        job_id,
+        session.get("user_id"),
+        new_start_date.isoformat(),
+    )
+    flash("Job moved.", "success")
+
     return redirect(
         request.form.get("next")
         or request.args.get("next")

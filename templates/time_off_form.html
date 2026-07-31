@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Add Time Off</h2>
+
+<form method="POST" class="card" style="max-width: 520px; margin: 1rem auto;">
+    {% if csrf_token %}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% endif %}
+
+    <input type="hidden" name="next" value="{{ next or '' }}">
+
+    <label class="mb-1">
+        Technician
+        <select name="technician_id" class="input" required>
+            <option value="">Choose a technician.</option>
+            {% for technician in technicians %}
+                <option value="{{ technician.id }}">{{ technician.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <label class="mb-1">
+        Start Date
+        <input
+                type="date"
+                name="start_date"
+                class="input"
+                value="{{ selected_date }}"
+                required
+                >
+    </label>
+
+
+    <label class="mb-1">
+        End Date
+        <input
+                type="date"
+                name="end_date"
+                class="input"
+                value="{{ selected_date }}"
+                required
+                >
+    </label>
+
+    <label class="mb-1">
+        Reason
+        <textarea name="reason" class="input" rows="4"></textarea>
+    </label>
+
+    <div class="flex-row gap mt-1">
+        <button type="submit" class="btn btn-yellow">Add Time Off</button>
+        <a href="{{ next or url_for('calendar.index') }}" class="btn">Cancel</a>
+    </div>
+</form>
+{% endblock %}

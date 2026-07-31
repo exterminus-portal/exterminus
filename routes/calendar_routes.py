@@ -213,46 +213,79 @@ def day_view(selected_date: str):
     )
 
 
-@calendar_bp.route("/time_off/add", methods=["POST"])
+@calendar_bp.route("/time_off/add", methods=["GET", "POST"])
 @login_required
 def add_time_off():
-    """Add time off. Defaults: end_date=start_date; start_date=today if missing."""
-    user = session["user"]
+    """Display or submit the Add Time Off form."""
+    conn = get_database()
+    technicians = conn.execute(
+        "SELECT id, name FROM technicians ORDER BY name"
+    ).fetchall()
+
+    if request.method == "GET":
+        selected_date = (request.args.get("date") or date.today().isoformat()).strip()
+        return render_template(
+            "time_off_form.html",
+            technicians=technicians,
+            selected_date=selected_date,
+            next=request.args.get("next") or request.referrer,
+        )
+
     start = (request.form.get("start_date") or "").strip()
     end = (request.form.get("end_date") or "").strip()
     reason = (request.form.get("reason") or request.form.get("notes") or "").strip()
+    technician_id = (request.form.get("technician_id") or "").strip()
 
     if not start:
         start = date.today().isoformat()
     if not end:
         end = start
 
-    # Prefer explicit technician_id from the form; fall back to session user id.
-    tech_id = (request.form.get("technician_id") or "").strip() or None
-    conn = get_database()
-    cur = conn.cursor()
+    try:
+        start_date = date.fromisoformat(start)
+        end_date = date.fromisoformat(end)
+    except ValueError:
+        flash("Enter valid start and end dates.", "error")
+        return redirect(request.referrer or url_for("calendar.index"))
 
-    if tech_id:
-        cur.execute(
-            "INSERT INTO time_off (technician_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)",
-            (tech_id, start, end, reason),
-        )
-    else:
-        # Try user_id first; fallback to technician_id with the same value if schema uses technicians only.
-        try:
-            cur.execute(
-                "INSERT INTO time_off (user_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)",
-                (user["user_id"], start, end, reason),
-            )
-        except Exception:
-            cur.execute(
-                "INSERT INTO time_off (technician_id, start_date, end_date, reason) VALUES (?, ?, ?, ?)",
-                (user["user_id"], start, end, reason),
-            )
+    if end_date < start_date:
+        flash("End date cannot be before start date.", "error")
+        return redirect(request.referrer or url_for("calendar.index"))
 
+    if not technician_id:
+        flash("Choose a technician.", "error")
+        return redirect(request.referrer or url_for("calendar.index"))
+
+    technician = conn.execute(
+        "SELECT id FROM technicians WHERE id = ?",
+        (technician_id,),
+    ).fetchone()
+
+    if technician is None:
+        flash("Technician not found.")
+        return redirect * (request.referrer or url_for("calendar.index"))
+
+    conn.execute(
+        """
+            INSERT INTO time_off (
+                technician_id,
+                start_date,
+                end_date,
+                reason
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+        (
+            technician_id,
+            start_date.isoformat(),
+            end_date.isoformat(),
+            reason,
+        ),
+    )
     conn.commit()
-    flash("Time off added.", "success")
-    return redirect(request.referrer or url_for("calendar.index"))
+
+    flash("Time Off added.", "success")
+    return redirect(request.form.get("next") or url_for("calendar.index"))
 
 
 @calendar_bp.route("/time_off/<int:time_off_id>/delete", methods=["POST"])
